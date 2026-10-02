@@ -488,15 +488,20 @@ R"(Windows Registry Editor Version 5.00
         // SvcHostSplitThresholdInKB: installed RAM in KB, or 0x380000 for the default
         const unsigned threshold = gb > 0 ? (unsigned)gb * 1024u * 1024u : 0x380000u;
 
-        char body[512];
-        snprintf(body, sizeof(body),
-                 "%s"
-                 "[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control]\r\n"
-                 "\"SvcHostSplitThresholdInKB\"=dword:%08x\r\n"
-                 "\r\n"
-                 "[HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control]\r\n"
-                 "\"SvcHostSplitThresholdInKB\"=dword:%08x\r\n",
-                 kHeader, threshold, threshold);
-        return Import(body);
+        auto write = [threshold](const char* set) {
+            char body[512];
+            snprintf(body, sizeof(body),
+                     "%s"
+                     "[HKEY_LOCAL_MACHINE\\SYSTEM\\%s\\Control]\r\n"
+                     "\"SvcHostSplitThresholdInKB\"=dword:%08x\r\n",
+                     kHeader, set, threshold);
+            return Import(body);
+        };
+
+        // Imported separately: ControlSet001 may be absent or locked, and a combined
+        // .reg would report the whole profile as failed even though the live set took.
+        const bool live = write("CurrentControlSet");
+        write("ControlSet001");
+        return live;
     }
 }
